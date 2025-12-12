@@ -1,9 +1,68 @@
+#define OS_PAGE_SIZE 4096
+
 #include <windows.h>
 #include <gl/gl.h>
-
-#define assert(expression) if(!expression) { *(int*)0 = 0; }
+#include "notimp.c"
 
 int running = 1;
+
+void win32_assert()
+{
+    u32 error = GetLastError();
+
+    if(error != 0)
+    {
+        c8* message = 0;
+        FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+                      FORMAT_MESSAGE_FROM_SYSTEM |
+                      FORMAT_MESSAGE_IGNORE_INSERTS,
+                      NULL,
+                      error,
+                      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                      (LPTSTR) &message, 0,0);
+        assert(0);
+    }
+}
+
+void *os_mem_reserve(u64 size_bytes)
+{
+    return VirtualAlloc(0, size_bytes, MEM_RESERVE, PAGE_READWRITE);
+}
+
+void os_mem_commit(void *p, u64 size_bytes)
+{
+    VirtualAlloc(p, size_bytes, MEM_COMMIT, PAGE_READWRITE);
+}
+
+void *os_read_file(c8 *path, arena *arena, u64 *out_size)
+{
+    HANDLE file = CreateFileA(path, 
+                        GENERIC_READ, 
+                        FILE_SHARE_READ,
+                        0,
+                        OPEN_EXISTING, 
+                        FILE_ATTRIBUTE_NORMAL, 
+                        0);
+    win32_assert();
+    u32 size = GetFileSize(file, 0); // todo: epic fail with a large file
+    win32_assert();
+    if(out_size)
+    {
+        *out_size = size;
+    }
+
+    void *p = arena_push_dont_zero(arena, size, 8);  
+
+    ReadFile(file,
+             p,
+             size,
+             0,
+             0);
+    win32_assert();
+    CloseHandle(file);
+    win32_assert();
+    return p;
+}
 
 LRESULT win32_window_callback(HWND window,
                               UINT message,
@@ -129,6 +188,8 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     // main loop nyaa
     ////////////////////////////////////////////////////////////////////////////////
 
+    setup();
+
     while(running)
     {
         MSG message = {0};
@@ -141,8 +202,11 @@ int CALLBACK WinMain(HINSTANCE hInstance,
             DispatchMessage(&message);
         }
 
+        update();
+
         glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         SwapBuffers(hdc);
+        glFinish();
     }
 }
