@@ -1,10 +1,19 @@
 #define OS_PAGE_SIZE 4096
 
 #include <windows.h>
-#include <gl/gl.h>
+#include "notimp.h"
+#include "notimp_win32_gl.c"
 #include "notimp.c"
 
 int running = 1;
+
+typedef struct
+{
+    u32 screen_w, screen_h;
+    
+} win32_state;
+
+win32_state state = { 0 };
 
 void win32_assert()
 {
@@ -71,6 +80,12 @@ LRESULT win32_window_callback(HWND window,
 {
     switch (message)
     {
+        case WM_SIZE:
+        {
+            state.screen_w = (u32)LOWORD(lParam);
+            state.screen_h = (u32)HIWORD(lParam);
+            break;
+        }
         case WM_KEYDOWN:
         {
             if(wParam == VK_ESCAPE)
@@ -184,6 +199,8 @@ int CALLBACK WinMain(HINSTANCE hInstance,
     wglDeleteContext(oldRenderingContext);
     assert(wglMakeCurrent(hdc, modernContext));
 
+    win32_load_gl_extensions();
+
     ////////////////////////////////////////////////////////////////////////////////
     // main loop nyaa
     ////////////////////////////////////////////////////////////////////////////////
@@ -202,10 +219,13 @@ int CALLBACK WinMain(HINSTANCE hInstance,
             DispatchMessage(&message);
         }
 
-        update();
+        input input = 
+        {
+            .screen_w = state.screen_w,
+            .screen_h = state.screen_h,
+        };
+        update(&input);
 
-        glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
         SwapBuffers(hdc);
         glFinish();
     }

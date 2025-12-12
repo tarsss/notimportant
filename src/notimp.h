@@ -1,3 +1,6 @@
+#ifndef NOTIMP_HEADER
+#define NOTIMP_HEADER
+
 #include <stdint.h>
 #include <string.h>
 
@@ -15,7 +18,10 @@ typedef uint16_t    c16;
 typedef float       f32;
 typedef double      f64;
 
-#define assert(expression) if(!expression) { *(int*)0 = 0; }
+#include "notimp_math.h"
+
+#define assert(expression) if(!(expression)) { *(volatile int*)0 = 0; }
+#define alignof(struct) 8
 
 void *os_mem_reserve(u64 size_bytes);
 void os_mem_commit(void *p, u64 size_bytes);
@@ -61,4 +67,33 @@ void *arena_push(arena *arena, u64 size, u16 alignment)
     return p;
 }
 
+#define arena_push_struct(a, s) (s*)arena_push(a, sizeof(s), alignof(s))
+
+typedef struct 
+{
+    u8* cstring_ptr;
+    u32 length_without_null;
+
+} string8;
+
+u32 cstring_length(c8 *cstr)
+{
+    u32 i = 0;
+    while(cstr[i]) { i++; }
+    return i;
+}
+
+string8 cstring_add(c8 *a, c8 *b, arena *arena)
+{
+    u32 length_a = cstring_length(a);
+    u32 length_b = cstring_length(b);
+    c8 *res = arena_push_dont_zero(arena, length_a + length_b + 1, 8);
+    memcpy(res, a, length_a);
+    memcpy(res + length_a, b, length_b);
+    res[length_a + length_b] = 0;
+    return (string8) { res, length_a + length_b };
+}
+
 void *os_read_file(c8 *path, arena *arena, u64 *out_size);
+
+#endif
